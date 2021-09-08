@@ -1,0 +1,7 @@
+Exploiting GAN Internal Capacity for High-Quality Reconstruction of Natural Images
+https://arxiv.org/abs/1911.05630
+https://github.com/CIFASIS/exploiting-gan-internal-capacity
+- Looks like a better way of encoding into the BigGAN latent space
+
+THINGS: A database of 1,854 object concepts and more than 26,000 naturalistic object images
+https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0223792
