@@ -1,3 +1,7 @@
 numpy
+pandas
 torch
+torchvision
 mne
+matplotlib
+gensim
