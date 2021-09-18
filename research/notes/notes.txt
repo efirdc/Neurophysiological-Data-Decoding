@@ -1,7 +1,31 @@
+THINGS: A database of 1,854 object concepts and more than 26,000 naturalistic object images
+https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0223792
+
+
+Deep image reconstruction from human brain activity
+https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1006633
+- Decode fMRI into features of a deep neural network (DNN)
+- Optimize an image to have similar features
+
+
+Self-Attention Generative Adversarial Networks
+https://arxiv.org/abs/1805.08318
+
+
+(BigGAN) Large Scale GAN Training for High Fidelity Natural Image Synthesis
+https://arxiv.org/abs/1809.11096
+-
+
+
+(BigBiGAN) Large Scale Adversarial Representation Learning
+https://arxiv.org/abs/1907.02544
+-
+
+
 Exploiting GAN Internal Capacity for High-Quality Reconstruction of Natural Images
 https://arxiv.org/abs/1911.05630
 https://github.com/CIFASIS/exploiting-gan-internal-capacity
 - Looks like a better way of encoding into the BigGAN latent space
 
-THINGS: A database of 1,854 object concepts and more than 26,000 naturalistic object images
-https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0223792
+
+
