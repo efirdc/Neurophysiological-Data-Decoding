@@ -5,3 +5,5 @@ torchvision
 mne
 matplotlib
 gensim
+pytorch-pretrained-biggan
+h5py
