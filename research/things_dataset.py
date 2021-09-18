@@ -8,13 +8,11 @@ from torch.utils.data import Dataset
 import pandas as pd
 from PIL import Image
 
-from .typing import PathLike
-
 
 class ThingsDataset(Dataset):
     def __init__(
             self,
-            root: PathLike,
+            root: str,
             transform: Optional[Callable] = None,
     ):
         self.root = Path(root)
@@ -36,7 +34,7 @@ class ThingsDataset(Dataset):
             self.images.append({
                 "concept_id": concept_id,
                 "unique_id": unique_id,
-                "path": self.root / "Main" / image_path
+                "path": str(self.root / "Main" / image_path)
             })
 
     def __len__(self):
