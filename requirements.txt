@@ -7,3 +7,7 @@ matplotlib
 gensim
 pytorch-pretrained-biggan
 h5py
+autoreject
+fire
+torchmetrics
+pybids

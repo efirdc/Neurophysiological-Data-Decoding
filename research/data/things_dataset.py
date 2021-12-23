@@ -90,5 +90,3 @@ class ThingsDataset(Dataset):
             data = self.transform(data)
         image['data'] = data
         return image
-
-

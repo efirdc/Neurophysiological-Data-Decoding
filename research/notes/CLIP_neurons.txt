@@ -1,0 +1,7 @@
+Clone: https://microscope.openai.com/models/contrastive_16x/image_block_4_7_Add_6_0/1201
+weed: https://microscope.openai.com/models/contrastive_16x/image_block_4_7_Add_6_0/1
+drill: https://microscope.openai.com/models/contrastive_16x/image_block_4_7_Add_6_0/11
+harry potter: https://microscope.openai.com/models/contrastive_16x/image_block_4_7_add_3_0/151
+ginger: https://microscope.openai.com/models/contrastive_16x/image_block_4_7_add_3_0/158
+profanity: https://microscope.openai.com/models/contrastive_16x/image_block_4_6_add_5_0/8
+    https://microscope.openai.com/models/contrastive_16x/image_block_4_6_add_5_0/147

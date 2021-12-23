@@ -1,13 +1,6 @@
 THINGS: A database of 1,854 object concepts and more than 26,000 naturalistic object images
 https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0223792
 
-
-Deep image reconstruction from human brain activity
-https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1006633
-- Decode fMRI into features of a deep neural network (DNN)
-- Optimize an image to have similar features
-
-
 Self-Attention Generative Adversarial Networks
 https://arxiv.org/abs/1805.08318
 
@@ -28,4 +21,61 @@ https://github.com/CIFASIS/exploiting-gan-internal-capacity
 - Looks like a better way of encoding into the BigGAN latent space
 
 
+Learning Transferable Visual Models From Natural Language Supervision (CLIP)
+https://arxiv.org/pdf/2103.00020.pdf
+- Main idea is to use natural language to supervise images
+- They created the WebImageText (WIT) dataset containing 400 million (image, text) pairs.
+- Challenging to train. Previous SOTA classifiers on ImageNet required 20-30 GPU years of training.
+- Predicting exact words from the model did not work well.
+- Instead they use a contrastive objective. i.e. take pairwise cosine similarity between all image and and text
+    embeddings in a minibatch. Objective is to maximize the matching pair and minimize all others.
+- Image encoder architectures:
+    1) ResNet-50 as a base, with modifications from ResNet-D, anti-aliased pooling, transformer style attention pooling.
+    2) Vision Transformer (ViT)
+- Text encoder architecture: transformer
+- Training:
+    - 5 resnets: ResNet50, ResNet-101, and 3 resnet50s with increased compute: RN50x4, RN50x16, RN50x64
+    - 3 vision transformers: ViT-B/32, ViT-B/16, ViT-L/14
+    - 32 epochs, Adam, decoupled weight decay regularization, cosine decay lr
+    - huge batch size of 32,768
+    - Largest model trained for 18 days on 592 V100 GPUs
+    - ViT-L/14 was the best model (this is CLIP)
 
+
+Neural Encoding and Decoding with Deep Learning for Dynamic Natural Vision (2016)
+- Decoding and encoding video into AlexNet features
+- Data
+    - 11.5hrs of fMRI, from 3 subjects, 972 video clips
+    - 2.4hrs training movie, 40m test
+    - first and last movie frames held for 12 seconds.
+    - 3.5mm spatial, 2s temporal resolution
+    - transformed onto cortical surface, co-registed across subjects
+    - averaged across repeitions (2 for training, 10 for testing)
+- They fine-tuned AlexNet to output 15 high-level classes
+- Reconstructions were performed with a deconvolutional CNN
+- Correlations between voxels in two training runs were used to determine if a voxel was activated by the movie.
+    - r values converted to z scores using Fishers z-transformation
+    - z values averaged across subjects
+    - statistical signifigance evaluated using one-sample t-test
+    - significantly activated locations used to create a cortical mask, which was dilated to increase generalization
+- CNN features were log-transformed and then convolved with the canonical HRF
+- retinotpic mapping
+    - correlations computed between V voxels and an (C, H, W) feature map to obtain a (V, C, H, W) array of correlations
+    - take max on C dimension to get (V, H, W) array of maximual correlations at each location
+    - population receptive field (pRF) determined as the centroid of the top 20 locations in each (H, W) slice
+
+
+Transfer learning of deep neural network representations for fMRI decoding
+https://www.sciencedirect.com/science/article/pii/S0165027019301773#fig0010
+
+Decoding and mapping task states of the human brain via deep learning
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7267978/
+
+Reconstructing seen image from brain activity by visually-guided cognitive representation and adversarial learning (2021)
+https://www.sciencedirect.com/science/article/pii/S1053811920310879
+
+
+Deep image reconstruction from human brain activity (
+https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1006633
+- Decode fMRI into features of a deep neural network (DNN)
+- Optimize an image to have similar features

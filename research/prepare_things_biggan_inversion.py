@@ -4,7 +4,7 @@ import numpy as np
 import torchvision.transforms as T
 import h5py
 
-from .things_dataset import ThingsDataset
+from research.data.things_dataset import ThingsDataset
 
 
 def main(

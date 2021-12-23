@@ -1,0 +1,9 @@
+sub-02, good
+sub-03, good
+sub-04, good
+sub-05, good
+sub-07, good
+sub-08, good
+sub-09, good
+sub-10, good
+sub-11, bad, O2, C3

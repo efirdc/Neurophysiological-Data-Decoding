@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 import torchvision.models as models
 import torchvision.transforms as T
 
-from .things_dataset import ThingsDataset
+from research.data.things_dataset import ThingsDataset
 from .imagenet_classes import imagenet_classes
 from pipeline.compact_json_encoder import CompactJSONEncoder
 

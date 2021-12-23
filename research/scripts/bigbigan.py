@@ -76,6 +76,7 @@ def image_to_uint8(x):
     x = x.astype(np.uint8)
     return x
 
+
 class BigBiGAN(object):
 
     def __init__(self, module):
@@ -199,7 +200,7 @@ class BigBiGAN(object):
 
         For the original BigBiGAN losses, pass batches of size N=M=2048, with z's
         sampled from a 120D standard Gaussian (e.g., np.random.randn(2048, 120)),
-        and x's sampled from the ImageNet (ILSVRC2012) training set with the
+        and x's sampled from the ImageNet (ILSVRC2012) experiments set with the
         "ResNet-style" preprocessing from:
 
             https://github.com/tensorflow/tpu/blob/master/models/official/resnet/resnet_preprocessing.py
@@ -235,6 +236,41 @@ class BigBiGAN(object):
 
 def main():
     module_path = 'https://tfhub.dev/deepmind/bigbigan-resnet50/1'
+    module = hub.Module(module_path)  # inference
+
+    for signature in module.get_signature_names():
+        print('Signature:', signature)
+        print('Inputs:', pformat(module.get_input_info_dict(signature)))
+        print('Outputs:', pformat(module.get_output_info_dict(signature)))
+        print()
+
+    bigbigan = BigBiGAN(module)
+
+    # Make input placeholders for x (`enc_ph`) and z (`gen_ph`).
+    enc_ph = bigbigan.make_encoder_ph()
+    gen_ph = bigbigan.make_generator_ph()
+
+    # Compute samples G(z) from encoder input z (`gen_ph`).
+    gen_samples = bigbigan.generate(gen_ph)
+
+    # Compute reconstructions G(E(x)) of encoder input x (`enc_ph`).
+    recon_x = bigbigan.reconstruct_x(enc_ph, upsample=True)
+
+    # Compute encoder features used for representation learning evaluations given
+    # encoder input x (`enc_ph`).
+    enc_features = bigbigan.encode(enc_ph, return_all_features=True)
+
+    # Compute discriminator scores for encoder pairs (x, E(x)) given x (`enc_ph`)
+    # and generator pairs (G(z), z) given z (`gen_ph`).
+    disc_scores_enc = bigbigan.discriminate(*bigbigan.enc_pairs_for_disc(enc_ph))
+    disc_scores_gen = bigbigan.discriminate(*bigbigan.gen_pairs_for_disc(gen_ph))
+
+    # Compute losses.
+    losses = bigbigan.losses(enc_ph, gen_ph)
+
+    init = tf.global_variables_initializer()
+    sess = tf.Session()
+    sess.run(init)
 
 
 if __name__ == "__main__":
