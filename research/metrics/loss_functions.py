@@ -4,7 +4,7 @@ import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
 
-from .metrics import embedding_distance
+from .metrics import embedding_distance, squared_euclidean_distance
 
 
 class SoftMinMSE(nn.Module):
@@ -154,17 +154,16 @@ class CosineSimilarityLoss(nn.Module):
         return loss.mean()
 
 
-class ContrastiveCosineSimilarityLoss(nn.Module):
-    def __init__(self, initial_temperature=1.):
+class ContrastiveDistanceLoss(nn.Module):
+    def __init__(self, distance_metric, initial_temperature=1.):
         super().__init__()
+        self.distance_metric = distance_metric
         self.temperature = nn.Parameter(torch.tensor(initial_temperature))
 
     def forward(self, prediction, target):
-        prediction = F.normalize(prediction, dim=1)
-        target = F.normalize(target, dim=1)
+        distances = -self.distance_metric(prediction[None, :], target[:, None])
+        distances = distances * self.temperature.exp()
 
-        sim = torch.einsum('i d, j d -> i j', prediction, target) * self.temperature.exp()
         labels = torch.arange(target.shape[0], device=target.device)
-        loss = (F.cross_entropy(sim, labels) + F.cross_entropy(sim.t(), labels)) / 2
+        loss = (F.cross_entropy(distances, labels) + F.cross_entropy(distances.t(), labels)) / 2
         return loss
-

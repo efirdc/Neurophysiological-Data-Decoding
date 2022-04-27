@@ -79,3 +79,21 @@ Deep image reconstruction from human brain activity (
 https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1006633
 - Decode fMRI into features of a deep neural network (DNN)
 - Optimize an image to have similar features
+
+
+
+NeuroGen: Activation optimized image synthesis for discovery neuroscience
+    Deepnet feature-weighted receptive (fwRF) encoding model
+        Predicts average response for each of 24 early and late visual regions
+        Hooks AlexNet representations with shape (256, 27, 27) (896, 13, 13) (1536, 1, 1)
+        Encoding model dots the H, W dims with a guassian, then does a linear transformation to 1 number
+            Linear transformation is a ridge regression, gaussian controlled by hyperparams, tuned with CV
+    BigGAN image synthesis
+        Objective: max single or pairs of regions, or max one and min others
+        Optimization
+            1. Identify the top 10 out of 1000 classes by randomly sampling 100 images for each class
+            2. Optimize the noise vector for each of the 10 classes, 10 seeds per class = 100 images.
+            3. Take the top image for each class = 10 images
+        Results
+            Encoding model
+

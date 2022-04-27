@@ -6,5 +6,7 @@
 *.json
 *.pkl
 *.npy
-*/.*
+.ipynb_checkpoints/*
 *.pt
+*.tar
+*.pdf
