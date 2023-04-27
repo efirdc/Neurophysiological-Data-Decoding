@@ -1,7 +1,10 @@
+import sys
+import os
 from typing import Dict, Any, Sequence
 
 import numpy as np
-from numpy.typing import ArrayLike
+import torch
+#from numpy.typing import ArrayLike
 import nibabel.freesurfer.io as fio
 
 def read_patch(fname):
@@ -38,10 +41,14 @@ def read_patch(fname):
 
 
 def is_sequence(x):
-    return isinstance(x, Sequence) and not isinstance(x, str)
+    if isinstance(x, np.ndarray) or isinstance(x, torch.Tensor):
+        return True
+    if isinstance(x, Sequence) and not isinstance(x, str):
+        return True
+    return False
 
 
-def index_unsorted(x: ArrayLike, indices: ArrayLike):
+def index_unsorted(x, indices):
     """
     Returns x[indices].
     Use if x is an array type where indices must be strictly increasing (i.e. an h5py.Dataset).
@@ -96,10 +103,12 @@ def nested_select(d: Dict, keys: Sequence[Any]):
         return d[key]
 
 
-def get_data_iterator(loader):
+def get_data_iterator(loader, new_epoch_callback=None):
     while True:
         for batch in loader:
             yield batch
+        if new_epoch_callback is not None:
+            new_epoch_callback()
 
 
 def product(seq: Sequence):
@@ -107,3 +116,13 @@ def product(seq: Sequence):
     for elem in seq:
         out *= elem
     return out
+
+
+class DisablePrints:
+    def __enter__(self):
+        self._original_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout.close()
+        sys.stdout = self._original_stdout

@@ -28,6 +28,7 @@ class Decoder(nn.Module):
         self.layers = nn.Sequential(*self.layers)
 
     def forward(self, x):
+        self.layers.to(x.device)
         x = x.flatten(start_dim=1)
         x = self.layers(x)
         if self.normalize:

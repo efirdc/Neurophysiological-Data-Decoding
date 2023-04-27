@@ -1,9 +1,9 @@
-from __future__ import annotations
+#from __future__ import annotations
 
 from pathlib import Path
 from dataclasses import dataclass
 from random import Random
-from typing import Callable, Optional, Sequence, Tuple, Dict, Any
+from typing import Callable, Optional, Sequence, Tuple, Dict, Any, Union
 
 import numpy as np
 import torch
@@ -12,8 +12,11 @@ import pandas as pd
 import h5py
 import nibabel as nib
 from einops import rearrange
+from pycocotools.coco import COCO
+from nsdcode.nsd_mapdata import NSDmapdata
+import matplotlib.pyplot as plt
 
-from pipeline.utils import index_unsorted
+from pipeline.utils import index_unsorted, DisablePrints, read_patch
 
 BETAS_SCALE = 300
 BETAS_PER_SESSION = 750
@@ -25,6 +28,7 @@ class NaturalScenesDataset:
             dataset_path: str,
             resolution_name: str = 'func1pt8mm',
             preprocess_name: str = 'betas_fithrf_GLMdenoise_RR',
+            coco_path: Optional[str] = None,
     ):
         self.dataset_path = Path(dataset_path)
         self.derivatives_path = self.dataset_path / 'derivatives'
@@ -48,18 +52,26 @@ class NaturalScenesDataset:
 
             func_path = self.ppdata_path / subject_name / resolution_name
             roi_path = func_path / 'roi'
+            derivative_image_path = self.derivatives_path / 'images' / subject_name / resolution_name
             roi_paths = {
                 **{name: func_path / f'{name}.nii.gz'
                    for name in ('brainmask', 'aseg', 'hippoSfLabels')},
                 **{name: roi_path / f'{name}.nii.gz'
                    for name in ('corticalsulc', 'floc-bodies', 'floc-faces', 'floc-places', 'floc-words',
-                                'HCP_MMP1', 'Kastner2015', 'MTL', 'nsdgeneral', 'prf-eccrois', 'pip install pysurfer',
-                                'streams', 'thalamus')},
+                                'HCP_MMP1', 'Kastner2015', 'MTL', 'nsdgeneral', 'prf-eccrois', 'streams', 'thalamus')},
+                **{name: derivative_image_path / f'{name}.nii.gz'
+                   for name in ('wm', 'aparc', 'aparc.DKTatlas', 'aparc.a2009s', 'HCP_MMP1_cortices')},
             }
+            for hemi in ('lh', 'rh'):
+                roi_paths.update({
+                    f'{hemi}.{name}': path.parent / f'{hemi}.{path.name}'
+                    for name, path in roi_paths.items()
+                })
 
             subject_data['roi_paths'] = roi_paths
             label_name_path = self.dataset_path / 'nsddata' / 'freesurfer' / subject_name / 'label'
             ctab_files = [p for p in label_name_path.iterdir() if p.suffix == '.ctab']
+            ctab_files += list((self.derivatives_path / 'labels' / subject_name).iterdir())
             subject_data['roi_label_names'] = label_names = {}
             for roi_name in roi_paths.keys():
                 for ctab_file in ctab_files:
@@ -68,6 +80,29 @@ class NaturalScenesDataset:
                             lines = [line.strip().split(' ') for line in f.readlines()]
                             label_names[roi_name] = {int(line[0]): line[1] for line in lines}
                         label_names[roi_name][-1] = 'Unlabeled'
+
+        simulus_information_path = self.dataset_path / 'nsddata' / 'experiments' / 'nsd' / 'nsd_stim_info_merged.csv'
+        self.stimulus_info = pd.read_csv(simulus_information_path, index_col=0)
+
+        self.coco_path = None
+        if coco_path:
+            self.coco_path = Path(coco_path)
+            with DisablePrints():
+                annotation_path = self.coco_path / 'annotations'
+                fold_names = ('train2017', 'val2017')
+                annotation_types = ('captions',)
+                self.coco_folds = {
+                    fold_name: {
+                        annotation_type: COCO(annotation_path / f'{annotation_type}_{fold_name}.json')
+                        for annotation_type in annotation_types
+                    }
+                    for fold_name in fold_names
+                }
+
+        self.map_data = NSDmapdata(dataset_path)
+
+        self.lh_flat = read_patch(self.dataset_path / 'nsddata/freesurfer/fsaverage/surf/lh.full.flat.patch.3d')
+        self.rh_flat = read_patch(self.dataset_path / 'nsddata/freesurfer/fsaverage/surf/rh.full.flat.patch.3d')
 
     def get_affine(self, subject_name):
         return nib.load(self.subjects[subject_name]['roi_paths']['brainmask']).affine
@@ -88,51 +123,63 @@ class NaturalScenesDataset:
     def load_betas(
             self,
             subject_name: str,
-            voxel_selection_path: str,
-            voxel_selection_key: Sequence[str],
+            betas_indices: Optional[np.ndarray] = None,
+            voxel_selection_path: Optional[str] = None,
+            voxel_selection_key: Optional[str] = None,
             num_voxels: Optional[int] = None,
             threshold: Optional[float] = None,
             return_volume_indices: bool = False,
+            return_tensor_dataset: bool = True,
+            session_normalize: bool = True,
+            scale_betas: bool = True,
     ):
         subject_betas = self.subjects[subject_name]['betas']
-        voxel_selection_file = h5py.File(self.dataset_path / voxel_selection_path, 'r')
-        key = f'{subject_name}/{voxel_selection_key}'
-        voxel_selection_map = voxel_selection_file[key][:].flatten()
 
-        if num_voxels is not None:
-            indices_flat = voxel_selection_map[:num_voxels]
-        elif threshold is not None:
-            indices_flat = np.where(voxel_selection_map > threshold)[0]
-        else:
-            raise ValueError()
+        if betas_indices is None:
+            voxel_selection_file = h5py.File(self.dataset_path / voxel_selection_path, 'r')
+            key = f'{subject_name}/{voxel_selection_key}'
+            voxel_selection_map = voxel_selection_file[key][:]
+            if num_voxels is not None:
+                betas_indices = voxel_selection_map[:num_voxels]
+
+            elif threshold is not None:
+                betas_indices = np.where(voxel_selection_map.flatten() > threshold)[0]
+            else:
+                raise ValueError()
+
+        if len(betas_indices.shape) > 1:
+            betas_indices = self.flatten_indices(subject_name, betas_indices)
 
         betas = np.stack([
             subject_betas['betas'][:, i]
-            for i in indices_flat
+            for i in betas_indices
         ], axis=1)
-        betas = torch.from_numpy(betas).float() / BETAS_SCALE
+        betas = betas.astype(np.float32)
+        if scale_betas:
+            betas = betas / BETAS_SCALE
 
-        N, V = betas.shape
-        betas = betas.reshape(BETAS_PER_SESSION, N // BETAS_PER_SESSION, V)
-        betas_mean = subject_betas['mean'][:][:, indices_flat]
-        betas_std = subject_betas['std'][:][:, indices_flat]
+        if session_normalize:
+            betas = rearrange(betas, '(s b) v -> s b v', b=BETAS_PER_SESSION)
+            betas = (betas - betas.mean(axis=1, keepdims=True)) / (betas.std(axis=1, keepdims=True) + 1e-7)
+            betas = rearrange(betas, 's b v -> (s b) v')
 
-        betas = (betas - betas_mean) / betas_std
-        betas = betas.reshape(N, V)
-        betas = TensorDataset(betas)
+        if return_tensor_dataset:
+            betas = TensorDataset(torch.from_numpy(betas))
 
+        out = [betas]
         if return_volume_indices:
-            volume_indices = subject_betas['indices'][:][indices_flat]
-            return betas, volume_indices
-        else:
-            return betas
+            volume_indices = subject_betas['indices'][:][betas_indices]
+            out.append(volume_indices)
+        return tuple(out)
 
     def load_stimulus(
             self,
-            subject_name: str,
+            subject_name: Optional[str] = None,
             stimulus_path: str = 'nsddata_stimuli/stimuli/nsd/nsd_stimuli.hdf5',
             stimulus_key: str = 'imgBrick',
             delay_loading: bool = False,
+            return_tensor_dataset: bool = True,
+            return_stimulus_ids: bool = False,
     ):
         stimulus_file = h5py.File(self.dataset_path / stimulus_path, 'r')
         stimulus = stimulus_file[stimulus_key]
@@ -141,10 +188,18 @@ class NaturalScenesDataset:
         response_stimulus_ids = responses['73KID'].to_numpy() - 1
 
         if delay_loading:
+            if not return_tensor_dataset:
+                raise RuntimeError()
             return StimulusDataset(stimulus, response_stimulus_ids)
         else:
             stimulus_data = index_unsorted(stimulus, response_stimulus_ids)
-            return TensorDataset(stimulus_data)
+            if return_tensor_dataset:
+                return TensorDataset(torch.from_numpy(stimulus_data))
+            else:
+                if return_stimulus_ids:
+                    return stimulus_data, response_stimulus_ids
+                else:
+                    return stimulus_data
 
     def get_split(
             self,
@@ -204,19 +259,36 @@ class NaturalScenesDataset:
 
         return torch.cat(tensors)[inverse_subset_ids]
 
+    def volume_shape(self, subject_name: str):
+        if isinstance(subject_name, int):
+            subject_name = f'subj0{subject_name + 1}'
+        subject_betas = self.subjects[subject_name]['betas']
+        volume_shape = tuple(subject_betas['betas'].attrs['spatial_shape'])
+        return volume_shape
+
     def reconstruct_volume(
             self,
             subject_name: str,
-            values: torch.Tensor,
+            values: Union[float, torch.Tensor],
             indices: torch.Tensor,
             fill_value: Any = 0.,
     ):
-        subject_betas = self.subjects[subject_name]['betas']
-        volume_shape = tuple(subject_betas['betas'].attrs['spatial_shape'])
+        volume_shape = self.volume_shape(subject_name)
 
         volume = torch.full(volume_shape, fill_value, dtype=values.dtype)
         volume[indices[:, 0], indices[:, 1], indices[:, 2]] = values
         return volume
+
+    def flatten_indices(
+            self,
+            subject_name: str,
+            volume_indices: torch.Tensor
+    ):
+        subject_betas = self.subjects[subject_name]['betas']
+        H, W, D = tuple(subject_betas['betas'].attrs['spatial_shape'])
+        volume = np.arange(H * W * D).reshape((H, W, D))
+        flat_indices = volume[volume_indices[:, 0], volume_indices[:, 1], volume_indices[:, 2]]
+        return flat_indices
 
     def load_data(
             self,
@@ -261,6 +333,104 @@ class NaturalScenesDataset:
         test.normalize(train, normalize_X, normalize_Y)
 
         return train, val, test
+
+    def load_coco(self, i):
+        stim_info = dict(self.stimulus_info.loc[i])
+        coco_stim_id = stim_info['cocoId']
+        fold = self.coco_folds[stim_info['cocoSplit']]
+        #coco = fold['instances']
+        #image_info = coco.loadImgs([coco_stim_id])[0]
+
+        coco_captions = fold['captions']
+        annotation_ids = coco_captions.getAnnIds(imgIds=coco_stim_id)
+        captions = [
+            annotation['caption']
+            for annotation in coco_captions.loadAnns(annotation_ids)
+        ]
+        return captions
+
+    def to_fs_subject_space(
+            self,
+            subject_id: int,
+            source_data: np.ndarray,
+            source_space: str = 'func1pt8',
+            target_space: str = 'pial',
+            interp_type: str = 'cubic',
+    ):
+        return {
+            hemi: self.map_data.fit(
+                subject_id + 1,
+                sourcespace=source_space,
+                targetspace=f'{hemi}.{target_space}',
+                sourcedata=source_data,
+                interptype=interp_type,
+            )
+            for hemi in ['lh', 'rh']
+        }
+
+    def to_fs_average_space(
+            self,
+            subject_id: int,
+            source_data: np.ndarray,
+            source_space: str = 'func1pt8',
+            subject_space: str = 'pial',
+            interp_type: str = 'cubic',
+    ):
+        subject_data = self.to_fs_subject_space(
+            subject_id, source_data, source_space, subject_space, interp_type
+        )
+        return {
+            hemi: self.map_data.fit(
+                subject_id + 1,
+                sourcespace=f'{hemi}.white',
+                targetspace='fsaverage',
+                sourcedata=data,
+                interptype=interp_type
+            )
+            for hemi, data in subject_data.items()
+        }
+
+    def flat_scatter_plot(
+            self,
+            lh_data: np.ndarray,
+            rh_data: np.ndarray,
+            bottomleft_text: str = None,
+            bottomright_text: str = None,
+            cmap: str = 'jet',
+            vmin: float = 0.0,
+            vmax: float = 0.5,
+            alpha: float = 0.5,
+            mask_value: float = None,
+            mask_color: str = 'gray'
+    ):
+        spread = 140
+        y_diff = np.max(self.rh_flat['y']) - np.max(self.lh_flat['y'])
+        x = np.concatenate([self.lh_flat['x'] - spread, self.rh_flat['x'] + spread])
+        y = np.concatenate([self.lh_flat['y'], self.rh_flat['y'] - y_diff])
+        c = np.concatenate([lh_data[self.lh_flat['vno']], rh_data[self.rh_flat['vno']]])
+
+        xmin, xmax = np.min(x), np.max(x)
+        ymin, ymax = np.min(y), np.max(y)
+        xsize = xmax - xmin
+        ysize = ymax - ymin
+
+        scale = 0.05
+        plt.figure(figsize=(xsize * scale, ysize * scale))
+        plt.xlim(xmin, xmax)
+        plt.ylim(ymin, ymax)
+        padding=5
+        fontsize=25
+        plt.text(xmin+padding, ymin+padding, bottomleft_text,
+                 horizontalalignment='left', verticalalignment='bottom', fontsize=fontsize)
+        plt.text(xmax-padding, ymin+padding, bottomright_text,
+                 horizontalalignment='right', verticalalignment='bottom', fontsize=fontsize)
+        plt.tick_params(axis='both', which='both', bottom=False, left=False, labelbottom=False, labelleft=False)
+        if mask_value:
+            mask = c == mask_value
+            plt.scatter(x[mask], y[mask], s=5, c=mask_color, alpha=alpha)
+            plt.scatter(x[~mask], y[~mask], s=5, c=c[~mask], cmap=cmap, vmin=vmin, vmax=vmax, alpha=alpha)
+        else:
+            plt.scatter(x, y, s=5, c=c, cmap=cmap, vmin=vmin, vmax=vmax, alpha=alpha)
 
 
 class StimulusDataset(Dataset):
@@ -332,7 +502,7 @@ class NSDFold:
         self.normalized = False
         self.normalize_params = None
 
-    def normalize(self, other: NSDFold, normalize_X: bool, normalize_Y: bool):
+    def normalize(self, other, normalize_X: bool, normalize_Y: bool):
         assert not self.normalized
 
         if normalize_X:

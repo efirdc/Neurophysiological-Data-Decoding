@@ -28,7 +28,12 @@ class Data:
         self.layout = bids.BIDSLayout(Path(dataset_path) / "TC2See_prdgm")
         self.layout2 = bids.BIDSLayout(Path(dataset_path) / "derivatives_TC2See_prdgm", False)
 
-        self.tr = self.layout2.get(datatype="func", extension="nii.gz", space=self.space, subject=self.subject, task=self.task, run=self.run, suffix="bold")[0].entities["RepetitionTime"]
+        self.tr = self.layout2.get(
+            datatype="func",
+            extension="nii.gz",
+            space=self.space,
+            subject=self.subject,
+            task=self.task, run=self.run, suffix="bold")[0].entities["RepetitionTime"]
 
     def cache(self, name, *args, **kwargs):
         property_name = "cache_"+name

@@ -4,7 +4,7 @@ import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
 
-from .metrics import embedding_distance, squared_euclidean_distance
+from .metrics import embedding_distance, squared_euclidean_distance, cosine_distance, r2_score
 
 
 class SoftMinMSE(nn.Module):
@@ -155,15 +155,45 @@ class CosineSimilarityLoss(nn.Module):
 
 
 class ContrastiveDistanceLoss(nn.Module):
-    def __init__(self, distance_metric, initial_temperature=1.):
+    def __init__(self, distance_metric, use_temperature=False, initial_temperature=1.):
         super().__init__()
         self.distance_metric = distance_metric
+        self.use_temperature = use_temperature
         self.temperature = nn.Parameter(torch.tensor(initial_temperature))
 
     def forward(self, prediction, target):
         distances = -self.distance_metric(prediction[None, :], target[:, None])
-        distances = distances * self.temperature.exp()
+        if self.use_temperature:
+            distances = distances * self.temperature.exp()
 
         labels = torch.arange(target.shape[0], device=target.device)
         loss = (F.cross_entropy(distances, labels) + F.cross_entropy(distances.t(), labels)) / 2
         return loss
+
+
+class BalancedContrastiveLoss(nn.Module):
+    def __init__(self, l2_weight, cosine_weight, contrastive_weight):
+        super().__init__()
+        self.l2_weight = l2_weight
+        self.cosine_weight = cosine_weight
+        self.contrastive_weight = contrastive_weight
+
+        self.l2_criterion = nn.MSELoss()
+        self.cosine_criterion = CosineSimilarityLoss()
+        self.contrastive_criterion = ContrastiveDistanceLoss(cosine_distance)
+
+    def forward(self, prediction, target):
+        l2_loss = ((prediction - target) ** 2).sum(axis=1).mean()
+        #l2_loss = 1 - r2_score(prediction, target, reduction='mean')
+        cosine_loss = self.cosine_criterion(prediction, target)
+        contrastive_loss = self.contrastive_criterion(prediction, target)
+
+        loss = l2_loss * self.l2_weight + cosine_loss * self.cosine_weight + contrastive_loss * self.contrastive_weight
+        loss_dict = {
+            'loss': loss,
+            'l2_loss': l2_loss,
+            'cosine_loss': cosine_loss,
+            'contrastive_loss': contrastive_loss,
+        }
+
+        return loss, loss_dict

@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from sklearn.model_selection import KFold
 from einops import rearrange
+from fracridge import fracridge
 
 
 def pearsonr(X, Y, dim=0, cast_dtype=torch.float64):
@@ -24,7 +25,8 @@ def rsquared(Y, Y_pred, dim=0, cast_dtype=torch.float64):
     Y = Y.to(cast_dtype)
     Y_pred = Y_pred.to(cast_dtype)
 
-    ss_res = ((Y - Y_pred) ** 2).sum(dim=dim)
+    ss_res = (Y ** 2).sum(dim=dim) + (Y_pred ** 2).sum(dim=dim) - 2 * torch.einsum('...ij,...ij->...j', Y, Y_pred)
+    #ss_res = ((Y - Y_pred) ** 2).sum(dim=dim)
     ss_tot = ((Y - Y.mean(dim=dim, keepdim=True)) ** 2).sum(dim=dim)
 
     r2 = 1 - ss_res / ss_tot
@@ -42,7 +44,9 @@ def frac_ridge_regression(X, Y, fractions=None, tol=1e-6, cast_dtype=torch.float
         fractions = torch.arange(.1, 1.1, .1)
     if cast_dtype:
         in_dtype = X.dtype
-        X, Y, fractions = [tensor.to(cast_dtype) for tensor in (X, Y, fractions)]
+        X = X.to(cast_dtype)
+        Y = Y.to(cast_dtype)
+        fractions = fractions.to(cast_dtype)
 
     U, S, Vt = torch.linalg.svd(X, full_matrices=False)
     Y_new = U.transpose(-1, -2) @ Y
@@ -53,6 +57,7 @@ def frac_ridge_regression(X, Y, fractions=None, tol=1e-6, cast_dtype=torch.float
 
     val1 = BIG_BIAS * S[..., 0] ** 2
     val2 = SMALL_BIAS * S[..., -1] ** 2
+    val2 = torch.max(val2, torch.tensor(1e-8).to(val2.device))
     print(f'{val1=}, {val2=}')
 
     grid_low = torch.floor(torch.log10(val2))
