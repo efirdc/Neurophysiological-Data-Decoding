@@ -6,6 +6,14 @@ docker container run \
 --interactive \
 --tty --rm nvidia/python:3.9 bash
 
+docker container run --interactive -p 8889:8889 -v D:\Datasets\NSD:/NSD/ -v "G:\Github Repositories\Neurophysiological-Data-Decoding":/code/ --tty --rm python:3.9 bash
+pip install jupyterlab
+pip install -U setuptools wheel numpy cython
+pip install -U pycortex
+apt update
+apt install inkscape
+jupyter lab --allow-root --port 8889 --ip 0.0.0.0
+
 
 python3 -m research.experiments.nsd.nsd_clip_reconstruction \
   --nsd_path "/NSD" \

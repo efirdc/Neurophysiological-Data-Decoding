@@ -159,7 +159,7 @@ def ridge_regression(X, Y, alpha=None,):
         ridge = alpha * torch.eye(lhs.shape[-2], device=X.device)
         return torch.linalg.lstsq(lhs + ridge, rhs).solution
 
-
+jup
 def ridge_regression_cv(X, Y, alpha=None, cv=5, tol=1e-6):
     if alpha is None:
         alpha = 10 ** torch.linspace(1, 5, 20)

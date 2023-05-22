@@ -88,6 +88,10 @@ def squared_euclidean_distance(Y1, Y2):
     return squared_distance
 
 
+def euclidean_distance(Y1, Y2):
+    return np.sqrt(squared_euclidean_distance(Y1, Y2))
+
+
 def mean_squared_distance(Y1, Y2):
     return squared_euclidean_distance(Y1, Y2) / Y1.shape[1]
 

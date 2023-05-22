@@ -75,7 +75,7 @@ class NaturalScenesDataset:
             subject_data['roi_label_names'] = label_names = {}
             for roi_name in roi_paths.keys():
                 for ctab_file in ctab_files:
-                    if ctab_file.name.startswith(roi_name):
+                    if ctab_file.name.startswith(f'{roi_name}.'):
                         with open(ctab_file) as f:
                             lines = [line.strip().split(' ') for line in f.readlines()]
                             label_names[roi_name] = {int(line[0]): line[1] for line in lines}

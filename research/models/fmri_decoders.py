@@ -36,6 +36,15 @@ class Decoder(nn.Module):
         return x
 
 
+class BrainDecoder(nn.Module):
+    def __init__(
+            self,
+            brain_layers: Sequence[int],
+            embedding_layers: Sequence[int],
+
+            ):
+        pass
+
 class ConvolutionalDecoder(nn.Module):
     """
 
